@@ -49,8 +49,9 @@ services:
       - ./docker-data/next-cache:/app/.next
     command: >
       sh -c "
-      npx prisma generate &&
-      npx prisma migrate deploy &&
+      if [ ! -f node_modules/.package-lock.json ]; then npm ci; fi &&
+      npm run prisma:generate &&
+      npm run prisma:deploy &&
       npm run prisma:seed &&
       npm run dev -- --hostname 0.0.0.0 --port 3000
       "
