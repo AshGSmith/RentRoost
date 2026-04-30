@@ -36,17 +36,17 @@ export default async function BankAccountDetailPage({
   params,
   searchParams
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ accountId: string }>;
   searchParams: Promise<{ tab?: "review" | "reconciled" | "ignored" }>;
 }) {
-  const [{ id }, { tab }, { tenantUserId }, { settings }] = await Promise.all([
+  const [{ accountId }, { tab }, { tenantUserId }, { settings }] = await Promise.all([
     params,
     searchParams,
     getTenantContext(),
     getTenantSettings()
   ]);
 
-  const account = await getBankAccount(tenantUserId, id);
+  const account = await getBankAccount(tenantUserId, accountId);
   if (!account) notFound();
 
   const activeTab = tab === "reconciled" || tab === "ignored" ? tab : "review";
@@ -54,11 +54,11 @@ export default async function BankAccountDetailPage({
 
   const [reviewTransactions, reconciledTransactions, ignoredTransactions, refs, rules] =
     await Promise.all([
-      listBankAccountTransactions(tenantUserId, id, BankTransactionStatus.REVIEW),
-      listBankAccountTransactions(tenantUserId, id, BankTransactionStatus.RECONCILED),
-      listBankAccountTransactions(tenantUserId, id, BankTransactionStatus.IGNORED),
+      listBankAccountTransactions(tenantUserId, accountId, BankTransactionStatus.REVIEW),
+      listBankAccountTransactions(tenantUserId, accountId, BankTransactionStatus.RECONCILED),
+      listBankAccountTransactions(tenantUserId, accountId, BankTransactionStatus.IGNORED),
       getReconcileReferenceData(tenantUserId),
-      listReconciliationRules(tenantUserId, id)
+      listReconciliationRules(tenantUserId, accountId)
     ]);
 
   const transactions =

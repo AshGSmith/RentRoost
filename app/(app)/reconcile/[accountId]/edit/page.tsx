@@ -5,9 +5,9 @@ import { PageHeader } from "@/components/ui/page-header";
 import { getTenantContext } from "@/lib/auth/tenant";
 import { getBankAccount } from "@/lib/reconcile/service";
 
-export default async function EditBankAccountPage({ params }: { params: Promise<{ id: string }> }) {
-  const [{ id }, { tenantUserId }] = await Promise.all([params, getTenantContext()]);
-  const account = await getBankAccount(tenantUserId, id);
+export default async function EditBankAccountPage({ params }: { params: Promise<{ accountId: string }> }) {
+  const [{ accountId }, { tenantUserId }] = await Promise.all([params, getTenantContext()]);
+  const account = await getBankAccount(tenantUserId, accountId);
 
   if (!account) notFound();
 

@@ -11,15 +11,15 @@ import {
 export default async function EditReconciliationRulePage({
   params
 }: {
-  params: Promise<{ id: string; ruleId: string }>;
+  params: Promise<{ accountId: string; ruleId: string }>;
 }) {
-  const [{ id, ruleId }, { tenantUserId }] = await Promise.all([params, getTenantContext()]);
+  const [{ accountId, ruleId }, { tenantUserId }] = await Promise.all([params, getTenantContext()]);
   const [rule, refs] = await Promise.all([
     getReconciliationRule(tenantUserId, ruleId),
     getReconcileReferenceData(tenantUserId)
   ]);
 
-  if (!rule || rule.bankAccountId !== id) notFound();
+  if (!rule || rule.bankAccountId !== accountId) notFound();
 
   return (
     <div className="space-y-8">
@@ -28,7 +28,7 @@ export default async function EditReconciliationRulePage({
         description="Refine the pattern, linked category, and auto-apply behaviour for this bank account."
       />
       <RuleForm
-        bankAccountId={id}
+        bankAccountId={accountId}
         categories={[
           ...refs.incomeCategories.map((category) => ({ id: category.id, name: category.name })),
           ...refs.expenseCategories.map((category) => ({ id: category.id, name: category.name }))
