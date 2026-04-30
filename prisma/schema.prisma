@@ -1,0 +1,544 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum ThemePreference {
+  LIGHT
+  DARK
+}
+
+enum DocumentCategory {
+  TENANCY_AGREEMENT
+  GENERAL
+  GENERATED_TEMPLATE
+}
+
+enum TemplateKind {
+  CUSTOM
+  NEW_TENANT_WELCOME
+  RENT_INCREASE
+}
+
+enum ReminderFrequency {
+  WEEKLY
+  MONTHLY
+  ANNUAL
+}
+
+enum ReminderKind {
+  GENERAL
+  RENT_REVIEW
+}
+
+enum CashflowCategoryType {
+  INCOME
+  EXPENSE
+}
+
+enum ReconciliationEntryType {
+  INCOME
+  EXPENSE
+}
+
+enum BankTransactionStatus {
+  REVIEW
+  RECONCILED
+  IGNORED
+}
+
+enum BankConnectionStatus {
+  DISCONNECTED
+  PENDING
+  CONNECTED
+  ERROR
+  REVOKED
+}
+
+model User {
+  id                  String               @id @default(cuid())
+  email               String               @unique
+  passwordHash        String
+  firstName           String
+  lastName            String
+  role                Role                 @default(USER)
+  isActive            Boolean              @default(true)
+  lastLoginAt         DateTime?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  sessions            Session[]            @relation("OwnedSessions")
+  impersonatedSessions Session[]           @relation("ImpersonatedSessions")
+  settings            UserSettings?
+  organisation        OrganisationSettings?
+  passwordResetTokens PasswordResetToken[]
+  auditLogs           AuditLog[]           @relation("AuditTargetUser")
+  actorAuditLogs      AuditLog[]           @relation("AuditActorUser")
+  landlords           Landlord[]
+  properties          Property[]
+  tenants             Tenant[]
+  tenancyAgreements   TenancyAgreement[]
+  tenancyParticipants TenancyParticipant[]
+  rentChanges         RentChange[]
+  documents           DocumentRecord[]
+  templates           DocumentTemplate[]
+  reminders           Reminder[]
+  cashflowCategories  CashflowCategory[]
+  incomes             IncomeEntry[]
+  expenses            ExpenseEntry[]
+  bankAccounts        BankAccount[]
+  bankTransactions    BankTransaction[]
+  reconciliationRules ReconciliationRule[]
+}
+
+model Session {
+  id                 String   @id @default(cuid())
+  tokenHash          String   @unique
+  userId             String
+  impersonatedUserId String?
+  expiresAt          DateTime
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  user               User     @relation("OwnedSessions", fields: [userId], references: [id], onDelete: Cascade)
+  impersonatedUser   User?    @relation("ImpersonatedSessions", fields: [impersonatedUserId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([impersonatedUserId])
+}
+
+model PasswordResetToken {
+  id         String    @id @default(cuid())
+  tokenHash  String    @unique
+  userId     String
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model UserSettings {
+  id                 String          @id @default(cuid())
+  userId             String          @unique
+  theme              ThemePreference @default(LIGHT)
+  currencyDesignator String          @default("£")
+  autoReconciliationEnabled Boolean  @default(false)
+  autoReconciliationMinConfidence Int @default(85)
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  user               User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model OrganisationSettings {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  organisationName String
+  logoData        Bytes?
+  logoMimeType    String?
+  logoFileName    String?
+  contactName     String?
+  contactNumber   String?
+  contactEmail    String?
+  bankName        String?
+  bankSortCode    String?
+  bankAccountNumber String?
+  bankAccountName String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id           String   @id @default(cuid())
+  userId       String?
+  actorUserId  String?
+  action       String
+  entityType   String
+  entityId     String
+  metadata     Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User?    @relation("AuditTargetUser", fields: [userId], references: [id], onDelete: SetNull)
+  actorUser    User?    @relation("AuditActorUser", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([actorUserId])
+  @@index([entityType, entityId])
+}
+
+model Landlord {
+  id                String             @id @default(cuid())
+  userId            String
+  name              String
+  email             String?
+  phoneNumber       String?
+  notes             String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  properties        Property[]
+  tenancyAgreements TenancyAgreement[]
+
+  @@index([userId])
+}
+
+model Property {
+  id                String             @id @default(cuid())
+  userId            String
+  landlordId        String?
+  name              String
+  addressLine1      String
+  addressLine2      String?
+  city              String
+  postcode          String
+  notes             String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  landlord          Landlord?          @relation(fields: [landlordId], references: [id], onDelete: SetNull)
+  tenancyAgreements TenancyAgreement[]
+  documents         DocumentRecord[]
+  reminders         Reminder[]
+
+  @@index([userId])
+  @@index([landlordId])
+}
+
+model Tenant {
+  id                 String              @id @default(cuid())
+  userId             String
+  firstName          String
+  surname            String
+  phoneNumber        String
+  email              String?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenancyParticipants TenancyParticipant[]
+
+  @@index([userId])
+}
+
+model TenancyAgreement {
+  id                String              @id @default(cuid())
+  userId            String
+  propertyId        String
+  landlordId        String?
+  startDate         DateTime
+  endDate           DateTime?
+  paymentDay        Int
+  depositAmount     Decimal             @db.Decimal(10, 2)
+  rentReviewDate    DateTime
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  property          Property            @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  landlord          Landlord?           @relation(fields: [landlordId], references: [id], onDelete: SetNull)
+  tenancyParticipants TenancyParticipant[]
+  rentChanges       RentChange[]
+  documents         DocumentRecord[]
+  reminders         Reminder[]
+  incomes           IncomeEntry[]
+  expenses          ExpenseEntry[]
+  reconciliationRules ReconciliationRule[]
+
+  @@index([userId])
+  @@index([propertyId])
+  @@index([landlordId])
+}
+
+model TenancyParticipant {
+  id                String           @id @default(cuid())
+  userId            String
+  tenancyAgreementId String
+  tenantId          String
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenancyAgreement  TenancyAgreement @relation(fields: [tenancyAgreementId], references: [id], onDelete: Cascade)
+  tenant            Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenancyAgreementId, tenantId])
+  @@index([userId])
+  @@index([tenantId])
+  @@index([tenancyAgreementId])
+}
+
+model RentChange {
+  id                String           @id @default(cuid())
+  userId            String
+  tenancyAgreementId String
+  amount            Decimal          @db.Decimal(10, 2)
+  effectiveDate     DateTime
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenancyAgreement  TenancyAgreement @relation(fields: [tenancyAgreementId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tenancyAgreementId])
+  @@index([effectiveDate])
+}
+
+model DocumentRecord {
+  id                String           @id @default(cuid())
+  userId            String
+  templateId        String?
+  propertyId        String?
+  tenancyAgreementId String?
+  category          DocumentCategory @default(GENERAL)
+  name              String
+  fileName          String
+  mimeType          String
+  fileSize          Int
+  fileData          Bytes
+  organisationDocument Boolean       @default(false)
+  metadata          Json?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  template          DocumentTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  property          Property?        @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  tenancyAgreement  TenancyAgreement? @relation(fields: [tenancyAgreementId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([templateId])
+  @@index([propertyId])
+  @@index([tenancyAgreementId])
+  @@index([category])
+}
+
+model DocumentTemplate {
+  id          String       @id @default(cuid())
+  userId      String
+  defaultKey  String?
+  name        String
+  kind        TemplateKind @default(CUSTOM)
+  content     String
+  isDefault   Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documents   DocumentRecord[]
+
+  @@unique([userId, defaultKey])
+  @@index([userId])
+}
+
+model Reminder {
+  id                         String             @id @default(cuid())
+  userId                     String
+  propertyId                 String?
+  tenancyAgreementId         String?
+  description                String
+  dueDate                    DateTime
+  reminderAt                 DateTime
+  critical                   Boolean            @default(false)
+  recurring                  Boolean            @default(false)
+  recurringFrequency         ReminderFrequency?
+  kind                       ReminderKind       @default(GENERAL)
+  systemGroupKey             String?
+  isComplete                 Boolean            @default(false)
+  completedAt                DateTime?
+  lastNotificationAttemptAt  DateTime?
+  lastNotifiedAt             DateTime?
+  notificationFailureAt      DateTime?
+  notificationFailureMessage String?
+  createdAt                  DateTime           @default(now())
+  updatedAt                  DateTime           @updatedAt
+  user                       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  property                   Property?          @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  tenancyAgreement           TenancyAgreement?  @relation(fields: [tenancyAgreementId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([propertyId])
+  @@index([tenancyAgreementId])
+  @@index([isComplete, dueDate])
+  @@index([critical, dueDate])
+  @@index([reminderAt])
+  @@index([systemGroupKey])
+}
+
+model CashflowCategory {
+  id         String               @id @default(cuid())
+  userId     String
+  name       String
+  type       CashflowCategoryType
+  isDefault  Boolean              @default(false)
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
+  user       User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  incomes    IncomeEntry[]
+  expenses   ExpenseEntry[]
+  reconciliationRules ReconciliationRule[]
+
+  @@unique([userId, type, name])
+  @@index([userId, type])
+}
+
+model IncomeEntry {
+  id                 String            @id @default(cuid())
+  userId             String
+  categoryId         String
+  tenancyAgreementId String?
+  bankTransactionId  String?           @unique
+  amount             Decimal           @db.Decimal(10, 2)
+  paymentDate        DateTime
+  notes              String?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  user               User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category           CashflowCategory  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  tenancyAgreement   TenancyAgreement? @relation(fields: [tenancyAgreementId], references: [id], onDelete: SetNull)
+  bankTransaction    BankTransaction?  @relation(fields: [bankTransactionId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([categoryId])
+  @@index([tenancyAgreementId])
+  @@index([bankTransactionId])
+  @@index([paymentDate])
+}
+
+model ExpenseEntry {
+  id                  String            @id @default(cuid())
+  userId              String
+  categoryId          String
+  tenancyAgreementId  String?
+  bankTransactionId   String?            @unique
+  grossAmount         Decimal           @db.Decimal(10, 2)
+  netAmount           Decimal           @db.Decimal(10, 2)
+  vatAmount           Decimal           @db.Decimal(10, 2)
+  removeVat           Boolean           @default(false)
+  description         String
+  invoiceNumber       String?
+  dueDate             DateTime
+  supplier            String
+  paid                Boolean           @default(false)
+  organisationExpense Boolean           @default(false)
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  user                User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category            CashflowCategory  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  tenancyAgreement    TenancyAgreement? @relation(fields: [tenancyAgreementId], references: [id], onDelete: SetNull)
+  bankTransaction     BankTransaction?  @relation(fields: [bankTransactionId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([categoryId])
+  @@index([tenancyAgreementId])
+  @@index([bankTransactionId])
+  @@index([dueDate])
+  @@index([paid])
+}
+
+model BankAccount {
+  id                           String               @id @default(cuid())
+  userId                       String
+  name                         String
+  institutionName              String?
+  accountMask                  String?
+  currency                     String               @default("GBP")
+  provider                     String               @default("manual")
+  providerAccountId            String?
+  providerAccessTokenEnc       String?
+  providerRefreshTokenEnc      String?
+  providerTokenExpiresAt       DateTime?
+  providerConsentExpiresAt     DateTime?
+  connectionStatus             BankConnectionStatus @default(DISCONNECTED)
+  providerLastSyncCursor       DateTime?
+  lastSyncAttemptAt            DateTime?
+  lastSyncedAt                 DateTime?
+  lastSyncError                String?
+  lastWebhookAt                DateTime?
+  autoReconciliationEnabled    Boolean?
+  autoReconciliationMinConfidence Int?
+  createdAt                    DateTime             @default(now())
+  updatedAt                    DateTime             @updatedAt
+  user                         User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions                 BankTransaction[]
+  reconciliationRules          ReconciliationRule[]
+
+  @@index([userId])
+  @@index([provider])
+  @@index([providerAccountId])
+  @@index([connectionStatus])
+}
+
+model BankTransaction {
+  id                    String                  @id @default(cuid())
+  userId                String
+  bankAccountId         String
+  externalTransactionId String?
+  bookedAt              DateTime
+  valueDate             DateTime?
+  amount                Decimal                 @db.Decimal(10, 2)
+  currency              String                  @default("GBP")
+  description           String
+  normalizedDescription String
+  counterparty          String?
+  reference             String?
+  confidenceScore       Int?
+  status                BankTransactionStatus   @default(REVIEW)
+  reconciliationType    ReconciliationEntryType?
+  suggestedRuleId       String?
+  ignoredAt             DateTime?
+  reconciledAt          DateTime?
+  rawData               Json?
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+  user                  User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bankAccount           BankAccount             @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  suggestedRule         ReconciliationRule?     @relation("SuggestedRule", fields: [suggestedRuleId], references: [id], onDelete: SetNull)
+  income                IncomeEntry?
+  expense               ExpenseEntry?
+
+  @@index([userId])
+  @@index([bankAccountId, status])
+  @@index([bookedAt])
+  @@index([normalizedDescription])
+  @@index([suggestedRuleId])
+}
+
+model ReconciliationRule {
+  id                    String                  @id @default(cuid())
+  userId                String
+  bankAccountId         String?
+  name                  String
+  type                  ReconciliationEntryType
+  normalizedDescription String
+  amount                Decimal?                @db.Decimal(10, 2)
+  counterparty          String?
+  categoryId            String
+  tenancyAgreementId    String?
+  organisationExpense   Boolean                 @default(false)
+  supplier              String?
+  expenseDescription    String?
+  incomeNotes           String?
+  removeVat             Boolean                 @default(false)
+  paid                  Boolean                 @default(true)
+  enabled               Boolean                 @default(true)
+  autoApply             Boolean                 @default(true)
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+  user                  User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bankAccount           BankAccount?            @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  category              CashflowCategory        @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  tenancyAgreement      TenancyAgreement?       @relation(fields: [tenancyAgreementId], references: [id], onDelete: SetNull)
+  suggestedTransactions BankTransaction[]       @relation("SuggestedRule")
+
+  @@index([userId])
+  @@index([bankAccountId])
+  @@index([categoryId])
+  @@index([normalizedDescription])
+  @@index([enabled, autoApply])
+}
