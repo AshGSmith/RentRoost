@@ -39,7 +39,7 @@ docker compose up --build
 
 Then open:
 
-- `http://localhost:3001`
+- `http://localhost:3002`
 
 ### What Docker does
 
@@ -48,7 +48,7 @@ Then open:
 - runs `prisma generate`
 - applies committed migrations with `prisma migrate deploy`
 - seeds demo data
-- starts the app on port `3001`
+- starts the app on port `3002`
 
 ### Docker files included
 
@@ -68,9 +68,10 @@ docker compose down -v
 
 ### Docker notes
 
-- the web app is available on host port `3001`
+- the web app is available on host port `3002`
 - PostgreSQL is exposed on host port `5434` to avoid clashing with any local service on `5432`
 - Docker uses the internal Compose database connection automatically
+- bind mounts are used for the database, `node_modules`, and Next.js cache under `./docker-data`
 
 ## Demo login
 
